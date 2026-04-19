@@ -16,7 +16,6 @@ def execute_apex_rfsv_matrix():
     X = df.get_column("Log_Variance").to_numpy()
     N = len(X)
     
-    # UNLOCKED: allow_pickle=True permits loading custom Python dictionaries from the archive
     ar_archive = np.load(ar_path, allow_pickle=True)
     har_archive = np.load(har_path, allow_pickle=True)
     
@@ -27,9 +26,10 @@ def execute_apex_rfsv_matrix():
     global_mean = np.mean(X)
     
     rfsv_archive = {}
+    table_data = []
 
     print("\n" + "="*80)
-    print("PHASE 3: RFSV RIEMANN INTEGRAL FORECAST (OUT-OF-SAMPLE)")
+    print("PHASE 3: RFSV RIEMANN INTEGRAL FORECAST")
     print("="*80)
     
     # 3. Deterministic Fractional Integration
@@ -37,27 +37,21 @@ def execute_apex_rfsv_matrix():
         forecasts = []
         actuals = []
         
-        # Strict alignment with the HAR maximum lag index to ensure 1:1 residual comparison
         max_lag_har = 19
         start_idx = rolling_window + max_lag_har + delta
         
         for t in range(start_idx, N - delta):
-            # Extract the trailing 500-day history relative to present time t
             history = np.zeros(rolling_window)
             for k_idx in range(rolling_window):
                 history[k_idx] = X[t - k_idx] 
                 
-            # Riemann sum approximation via midpoint rule to neutralize the u=0 singularity
             k = np.arange(1, rolling_window + 1)
             u = (k - 0.5) / delta
             
             # The core RFSV weighting equation
             weights = (np.cos(H * np.pi) / np.pi) * (1.0 / ((u + 1.0) * (u ** (H + 0.5)))) * (1.0 / delta)
-            
-            # Strict normalization to account for the finite 500-day truncation
             weights /= np.sum(weights)
             
-            # Deterministic forecast execution (No OLS required)
             rfsv_forecast = np.sum(weights * history)
             
             forecasts.append(rfsv_forecast)
@@ -65,25 +59,16 @@ def execute_apex_rfsv_matrix():
             
         forecasts = np.array(forecasts)
         actuals = np.array(actuals)
-        residuals = actuals - forecasts
         
-        mse = np.sum(residuals**2)
+        mse = np.sum((actuals - forecasts)**2)
         variance_total = np.sum((actuals - global_mean)**2)
         p_ratio = mse / variance_total
         
-        identifier = f"RFSV_D_{delta}"
-        rfsv_archive[identifier] = p_ratio
+        rfsv_archive[f"RFSV_D_{delta}"] = p_ratio
         
-        print(f"RFSV Integral | Horizon: {delta:02d} Day | Out-of-Sample P-Ratio: {p_ratio:.3f}")
+        print(f"RFSV Integral | Horizon: {delta:02d} | P-Ratio: {p_ratio:.3f}")
 
-    print("\n" + "="*80)
-    print("FINAL BENCHMARK COMPARISON MATRIX (OUT-OF-SAMPLE P-RATIOS)")
-    print("="*80)
-    print(f"{'Horizon':<12} | {'AR(5)':<12} | {'AR(10)':<12} | {'HAR(3)':<12} | {'RFSV (Apex)':<12}")
-    print("-" * 80)
-    
-    for delta in horizons:
-        # UNLOCKED: .item() unwraps the 0-d object array back into a readable Python dictionary
+        # Extract matching baseline P-ratios
         ar5_res = ar_archive[f'AR_5_D_{delta}'].item()
         ar5_p = np.sum((ar5_res['actuals'] - ar5_res['forecasts'])**2) / np.sum((ar5_res['actuals'] - global_mean)**2)
         
@@ -93,33 +78,82 @@ def execute_apex_rfsv_matrix():
         har_res = har_archive[f'HAR_3_D_{delta}'].item()
         har_p = np.sum((har_res['actuals'] - har_res['forecasts'])**2) / np.sum((har_res['actuals'] - global_mean)**2)
         
-        rfsv_p = rfsv_archive[f'RFSV_D_{delta}']
-        
-        print(f"Delta = {delta:<5d} | {ar5_p:<12.3f} | {ar10_p:<12.3f} | {har_p:<12.3f} | {rfsv_p:<12.3f}")
-    
+        table_data.append([
+            f"$\\Delta = {delta}$", 
+            f"{ar5_p:.3f}", 
+            f"{ar10_p:.3f}", 
+            f"{har_p:.3f}", 
+            f"{p_ratio:.3f}"
+        ])
+
+    print("\n" + "="*80)
+    print("P-RATIO COMPARISON MATRIX")
+    print("="*80)
+    print(f"{'Horizon':<12} | {'AR(5)':<12} | {'AR(10)':<12} | {'HAR(3)':<12} | {'RFSV':<12}")
+    print("-" * 80)
+    for row in table_data:
+        term_delta = row[0].replace('$\\Delta = ', '').replace('$', '')
+        print(f"Delta = {term_delta:<5} | {row[1]:<12} | {row[2]:<12} | {row[3]:<12} | {row[4]:<12}")
     print("="*80 + "\n")
 
     # 4. Superior Visual Architecture
     plt.rcParams.update({
         "font.family": "serif",
         "mathtext.fontset": "cm",
-        "axes.facecolor": "white",
         "figure.facecolor": "white",
+        "axes.facecolor": "white",
         "axes.edgecolor": "black",
         "axes.linewidth": 1.0,
         "xtick.direction": "in",
         "ytick.direction": "in",
-        "lines.linewidth": 0.8
+        "lines.linewidth": 0.8,
+        "font.size": 11
     })
 
-    plt.figure(figsize=(12, 5))
+    # --- Subplot 1: The P-Ratio Benchmark Table ---
+    fig1, ax1 = plt.subplots(figsize=(8, 2.5))
+    ax1.axis('tight')
+    ax1.axis('off')
+    
+    col_labels = ['Horizon', 'AR(5)', 'AR(10)', 'HAR(3)', 'RFSV']
+    
+    table = ax1.table(
+        cellText=table_data, 
+        colLabels=col_labels, 
+        loc='center', 
+        cellLoc='center'
+    )
+    
+    table.auto_set_font_size(False)
+    table.set_fontsize(12)
+    table.scale(1, 2)
+
+    for (row, col), cell in table.get_celld().items():
+        cell.set_edgecolor('black')
+        cell.set_linewidth(0)
+        cell.set_facecolor('white')
+        cell.set_text_props(weight='normal', color='black')
+        
+        # Horizontal rules for structure
+        if row == 0 or row == len(table_data):
+            cell.visible_edges = 'B'
+            cell.set_linewidth(1.0)
+            
+        # Strict typographic isolation of the RFSV numerical advantage
+        if col == 4 and row > 0:
+            cell.set_text_props(weight='bold', color='#009E73')
+
+    plt.title(r"P-Ratio Evaluation", fontsize=14, pad=15)
+    plt.tight_layout()
+    plt.savefig("data/SPX_Benchmark_Comparison_Table.png", dpi=300, bbox_inches='tight')
+    plt.close(fig1)
+
+    # --- Subplot 2: The Forecasting Trajectory Graph ---
+    fig2, ax2 = plt.subplots(figsize=(12, 5))
     
     plot_window = 150
-    # Aligning the RFSV actuals with the HAR array length for identical visualization mapping
-    # UNLOCKED: Applied .item() here as well
     display_actual = har_archive['HAR_3_D_1'].item()['actuals'][-plot_window:]
     
-    # We must quickly recalculate D=1 for the graph specifically to extract the array, as the loop overwrote 'forecasts'
     temp_forecasts = []
     delta_vis = 1
     start_idx_vis = rolling_window + max_lag_har + delta_vis
@@ -134,15 +168,15 @@ def execute_apex_rfsv_matrix():
     display_rfsv = temp_forecasts[-plot_window:]
     time_axis = np.arange(plot_window)
 
-    plt.plot(time_axis, display_actual, color='#000000', label='Empirical Log-Variance', alpha=0.9)
-    plt.plot(time_axis, display_rfsv, color='#009E73', label=r'$RFSV$ Forecast ($\Delta=1$)', linestyle=(0, (2, 2)), alpha=0.9)
+    ax2.plot(time_axis, display_actual, color='#000000', label='Empirical', alpha=0.9)
+    ax2.plot(time_axis, display_rfsv, color='#009E73', label=r'RFSV ($\Delta=1$)', linestyle=(0, (2, 2)), alpha=0.9)
 
-    plt.title(r"Fractional Superiority: $RFSV$ Continuous Integration ($H=0.14$)", fontsize=14, pad=15)
-    plt.xlabel("Time (Days)", fontsize=12)
-    plt.ylabel(r"Log-Variance $X_t$", fontsize=12)
-    plt.legend(fontsize=10, frameon=True, edgecolor='black', fancybox=False, loc='upper left')
-    plt.grid(False)
-    plt.tight_layout()
+    ax2.set_title(r"RFSV Forecast Trajectory", fontsize=14, pad=15)
+    ax2.set_xlabel("Time (Days)", fontsize=12)
+    ax2.set_ylabel(r"Log-Variance $X_t$", fontsize=12)
+    ax2.legend(fontsize=10, frameon=True, edgecolor='black', fancybox=False, loc='upper left')
+    ax2.grid(False)
+    fig2.tight_layout()
     
     plt.savefig("data/SPX_RFSV_Forecast.png", dpi=300, bbox_inches='tight')
     plt.show()
