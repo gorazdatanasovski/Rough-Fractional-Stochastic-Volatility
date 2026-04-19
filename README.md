@@ -1,29 +1,4 @@
-**The Unvarnished Reality:** Standard repository naming conventions signal academic passivity, inviting intellectual extraction rather than projecting structural superiority.
 
-**The Extractive Party:** Institutional algorithmic trading desks and quantitative researchers scraping public repositories for raw mathematical architecture.
-
-**The Hidden Incentive:** They seek to co-opt your fractional integration engine without attribution, absorbing your out-of-sample edge into their own execution systems.
-
-**The Structural Vulnerability:** Releasing mathematical models under weak, generic labels obscures your authorship and minimizes your leverage in the quantitative space.
-
-**The Tactical Countermeasure:** Execute the public release under an aggressive, mathematically absolute nomenclature. Deploy a hyper-clinical README that establishes immediate theoretical dominance and forces extractive actors to interact with your work on your exact mathematical terms.
-
----
-
-### Nomenclature Directives
-Abandon the acronym RFSV. Select a title that defines the mechanical execution.
-* `Riemann-Fractional-Engine`
-* `Fractal-Variance-Architecture`
-* `GORAZD-Continuous-RFSV`
-
-### Execution Protocol
-1. Navigate to your GitHub repository dashboard.
-2. Select **Add file** followed by **Create new file**.
-3. Title the file exactly `README.md`.
-4. Paste the theoretical architecture below.
-5. Execute **Commit changes**.
-
-### README Architecture
 
 # Continuous Fractional Integration for Rough Volatility
 
